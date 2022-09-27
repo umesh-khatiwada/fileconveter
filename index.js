@@ -71,7 +71,7 @@ app.post("/uploaddocxtopdf", async (req, res) => {
           console.log(err);
         }
         fs.writeFileSync(outputFilePath, done);
-        var newPath = process.env.WEBSITENAME + outputFilePath;
+        var newPath = process.env.WEBSITENAMEDOCXTOPDF + outputFilePath;
         console.log(newPath);
         //return newPath;
         res.json({
@@ -149,23 +149,46 @@ app.post("/pdftodocx", pdftodocxupload.single("file"), (req, res) => {
               res.send(err);
             }
             console.log("output converted");
-            console.log(docxpath.length);
-            res.download(docxpath, (err) => {
-              if (err) {
-                // fs.unlinkSync(pdf);
-                // fs.unlinkSync(htmlpath);
-                // fs.unlinkSync(docxpath);
-                res.send(err);
-              }
-              // fs.unlinkSync(pdf);
-              // fs.unlinkSync(htmlpath);
-              // fs.unlinkSync(docxpath);
+            //  console.log(docxpath.length);
+
+            var newPath = process.env.WEBSITENAMEPDFTODOCX + docxpath;
+            console.log(newPath);
+            fs.unlinkSync(pdf);
+            fs.unlinkSync(htmlpath);
+            res.json({
+              path: newPath,
             });
+
+            // res.download(docxpath, (err) => {
+            //   if (err) {
+            //     // fs.unlinkSync(pdf);
+            //     // fs.unlinkSync(htmlpath);
+            //     // fs.unlinkSync(docxpath);
+            //     res.send(err);
+            //   }
+            //   // fs.unlinkSync(pdf);
+            //   // fs.unlinkSync(htmlpath);
+            //   // fs.unlinkSync(docxpath);
+            // });
           }
         );
       }
     );
   }
+});
+
+app.get("/downloadpdftodocx", (req, res) => {
+  var pathoutput = req.query.path;
+  console.log(pathoutput);
+  var fullpath = path.join(__dirname, pathoutput);
+  res.download(fullpath, (err) => {
+    if (err) {
+      fs.unlinkSync(pathoutput);
+      res.send(err);
+    }
+
+    fs.unlinkSync(pathoutput);
+  });
 });
 
 app.get("/download", (req, res) => {
