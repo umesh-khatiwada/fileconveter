@@ -19,6 +19,7 @@ const multer = require("multer");
 const libre = require("libreoffice-convert");
 var isJson = require("is-json");
 const fs = require("fs");
+const { readdirSync, rename } = require("fs");
 
 app.use(express.json());
 //app.use(bodyParser.urlencoded({ extended: false }));
@@ -29,6 +30,7 @@ app.set("view engine", "ejs");
 app.use(express.static("public"));
 var uploadsDir = __dirname + "/public/uploads";
 var outputFilePath;
+var maxSize = 10000 * 1024 * 1024;
 
 //Storage function
 var storage = multer.diskStorage({
@@ -42,6 +44,23 @@ var storage = multer.diskStorage({
     );
   },
 });
+//IMAGE FILTER
+const imageFilter = function (req, file, callback) {
+  var ext = path.extname(file.originalname);
+  if (
+    ext !== ".png" &&
+    ext !== ".jpg" &&
+    ext !== ".jpeg" &&
+    ext !== ".bmp" &&
+    ext !== ".tiff" &&
+    ext !== ".gif" &&
+    ext !== ".wmf" &&
+    ext !== ".pdf"
+  ) {
+    return callback("This Extension is not supported");
+  }
+  callback(null, true);
+};
 
 //upload helper files
 
@@ -71,7 +90,7 @@ app.post("/uploaddocxtopdf", async (req, res) => {
           console.log(err);
         }
         fs.writeFileSync(outputFilePath, done);
-        var newPath = process.env.WEBSITENAMEDOCXTOPDF + outputFilePath;
+        var newPath = process.env.WEBSITENAME + outputFilePath;
         console.log(newPath);
         //return newPath;
         res.json({
@@ -110,8 +129,19 @@ var pdftodocxupload = multer({
 app.post("/pdftodocx", pdftodocxupload.single("file"), (req, res) => {
   if (req.file) {
     var pdf = req.file.path;
-    console.log(pdf);
-    var basename = path.basename(req.file.path);
+
+    var newFilepath = pdf;
+    newFilepath = newFilepath.replace(/\s/g, "").toLowerCase();
+
+    //rename
+    const oldPath = pdf;
+
+    // lowercasing the filename
+    const newPathh = newFilepath;
+
+    // Rename file
+    rename(oldPath, newPathh, (err) => console.log(err));
+    var basename = path.basename(newFilepath);
     //console.log(basename);
 
     basename = sanitize(basename);
@@ -125,51 +155,36 @@ app.post("/pdftodocx", pdftodocxupload.single("file"), (req, res) => {
 
     docxpath = sanitize(docxpath);
 
-    //res.json({ ghello: "bmnb" });
-
     exec(
-      `/Applications/LibreOffice.app/Contents/MacOS/soffice  --headless --convert-to html  ${pdf}`,
+      `$SOFFICE  --headless --convert-to html  ${newFilepath}`,
 
       //`soffice --headless --convert-to html --${uploadsDir} . ${pdf}`,
       (err, stdout, stderr) => {
         if (err) {
-          // fs.unlinkSync(pdf);
+          fs.unlinkSync(newFilepath);
           // fs.unlinkSync(htmlpath);
           // fs.unlinkSync(docxpath);
-          res.send(err);
+          return res.send(err);
         }
         console.log(htmlpath.length);
         exec(
-          `/Applications/LibreOffice.app/Contents/MacOS/soffice --convert-to docx:'MS Word 2007 XML' ${htmlpath}`,
+          `$SOFFICE --convert-to docx:'MS Word 2007 XML' ${htmlpath}`,
           (err, stdout, stderr) => {
             if (err) {
-              // fs.unlinkSync(pdf);
-              // fs.unlinkSync(htmlpath);
-              // fs.unlinkSync(docxpath);
-              res.send(err);
+              fs.unlinkSync(pdf);
+              fs.unlinkSync(htmlpath);
+              fs.unlinkSync(docxpath);
+              return res.send(err);
             }
             console.log("output converted");
-            //  console.log(docxpath.length);
 
-            var newPath = process.env.WEBSITENAMEPDFTODOCX + docxpath;
+            var newPath = process.env.WEBSITENAME + docxpath;
             console.log(newPath);
-            fs.unlinkSync(pdf);
+            fs.unlinkSync(newFilepath);
             fs.unlinkSync(htmlpath);
             res.json({
               path: newPath,
             });
-
-            // res.download(docxpath, (err) => {
-            //   if (err) {
-            //     // fs.unlinkSync(pdf);
-            //     // fs.unlinkSync(htmlpath);
-            //     // fs.unlinkSync(docxpath);
-            //     res.send(err);
-            //   }
-            //   // fs.unlinkSync(pdf);
-            //   // fs.unlinkSync(htmlpath);
-            //   // fs.unlinkSync(docxpath);
-            // });
           }
         );
       }
@@ -177,20 +192,76 @@ app.post("/pdftodocx", pdftodocxupload.single("file"), (req, res) => {
   }
 });
 
-app.get("/downloadpdftodocx", (req, res) => {
-  var pathoutput = req.query.path;
-  console.log(pathoutput);
-  var fullpath = path.join(__dirname, pathoutput);
-  res.download(fullpath, (err) => {
-    if (err) {
-      fs.unlinkSync(pathoutput);
-      res.send(err);
-    }
+//txt to doc
+const txttodocfilter = function (req, file, callback) {
+  var ext = path.extname(file.originalname);
+  if (ext !== ".txt") {
+    return callback("This Extension is not supported");
+  }
+  callback(null, true);
+};
 
-    fs.unlinkSync(pathoutput);
+var txttodocupload = multer({
+  storage: storage,
+  limits: { fileSize: maxSize },
+  fileFilter: txttodocfilter,
+});
+
+app.post("/txttodoc", txttodocupload.single("file"), (req, res) => {
+  if (req.file) {
+    var file = req.file.path;
+
+    var output = Date.now() + "output.doc";
+
+    var txt = fs.readFileSync(file);
+
+    fs.writeFileSync(output, txt);
+    var newPath = process.env.WEBSITENAME + output;
+    console.log(newPath);
+    res.json({
+      path: newPath,
+    });
+  }
+});
+
+//image to pdf
+
+var imagetopdfupload = multer({
+  storage: storage,
+  fileFilter: imageFilter,
+}).array("file", 100);
+
+app.post("/uploadimagetopdf", (req, res) => {
+  imagetopdfupload(req, res, function (err) {
+    if (err) {
+      return res.end("Error uploading file.");
+    }
+    var list = "";
+    req.files.forEach((file) => {
+      list += `${file.path}`;
+      list += " ";
+    });
+
+    outputFilePath = Date.now() + "output.pdf";
+    console.log(outputFilePath);
+
+    exec(`img2pdf ${list} -o ${outputFilePath}`, (err, stdout, stderr) => {
+      if (err) {
+        return res.json({
+          error: "some error takes place",
+        });
+      }
+
+      var newPath = process.env.WEBSITENAME + outputFilePath;
+
+      res.json({
+        path: newPath,
+      });
+    });
   });
 });
 
+//download
 app.get("/download", (req, res) => {
   var pathoutput = req.query.path;
   console.log(pathoutput);
@@ -198,13 +269,11 @@ app.get("/download", (req, res) => {
   res.download(fullpath, (err) => {
     if (err) {
       fs.unlinkSync(fullpath);
-      res.send(err);
+      return res.send(err);
     }
     fs.unlinkSync(fullpath);
   });
 });
-
-//app.use(require("./router/auth"));
 
 app.listen(PORT, () => {
   console.log(`App is listening on Port ${PORT}`);
