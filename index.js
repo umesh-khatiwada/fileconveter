@@ -1,7 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
 var sanitize = require("sanitize-filename");
-
 const cors = require("cors");
 //const cheerio = require("cheerio");
 app = express();
@@ -95,6 +94,7 @@ app.post("/uploaddocxtopdf", async (req, res) => {
         //return newPath;
         res.json({
           path: newPath,
+          ext: ".pdf",
         });
       });
     }
